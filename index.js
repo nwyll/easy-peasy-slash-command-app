@@ -1,27 +1,4 @@
 /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- ______    ______    ______   __  __    __    ______
- /\  == \  /\  __ \  /\__  _\ /\ \/ /   /\ \  /\__  _\
- \ \  __<  \ \ \/\ \ \/_/\ \/ \ \  _"-. \ \ \ \/_/\ \/
- \ \_____\ \ \_____\   \ \_\  \ \_\ \_\ \ \_\   \ \_\
- \/_____/  \/_____/    \/_/   \/_/\/_/  \/_/    \/_/
-
-
- This is a sample Slack Button application that provides a custom
- Slash command.
-
- This bot demonstrates many of the core features of Botkit:
-
- *
- * Authenticate users with Slack using OAuth
- * Receive messages using the slash_command event
- * Reply to Slash command both publicly and privately
-
- # RUN THE BOT:
-
- Create a Slack app. Make sure to configure at least one Slash command!
-
- -> https://api.slack.com/applications/new
-
  Run your bot from the command line:
 
  clientId=<my client id> clientSecret=<my client secret> PORT=3000 node bot.js
@@ -29,19 +6,14 @@
  Note: you can test your oauth authentication locally, but to use Slash commands
  in Slack, the app must be hosted at a publicly reachable IP or host.
 
-
- # EXTEND THE BOT:
-
- Botkit is has many features for building cool and useful bots!
-
- Read all about it here:
-
- -> http://howdy.ai/botkit
-
  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 /* Uses the slack button feature to offer a real time bot to multiple teams */
 var Botkit = require('botkit');
+
+/* Uses MomentJS for time/date manipulation */
+var moment = require('moment');
+moment().format();
 
 if (!process.env.CLIENT_ID || !process.env.CLIENT_SECRET || !process.env.PORT || !process.env.VERIFICATION_TOKEN) {
     console.log('Error: Specify CLIENT_ID, CLIENT_SECRET, VERIFICATION_TOKEN and PORT in environment');
@@ -81,38 +53,65 @@ controller.setupWebserver(process.env.PORT, function (err, webserver) {
 });
 
 
-//
-// BEGIN EDITING HERE!
-//
+//Slash Commands
+let timeTracker = {};
 
 controller.on('slash_command', function (slashCommand, message) {
-
     switch (message.command) {
-        case "/echo": //handle the `/echo` slash command. We might have others assigned to this app too!
+        case "/slacktracker": 
+            //handle the `/echo` slash command. We might have others assigned to this app in the future!
             // The rules are simple: If there is no text following the command, treat it as though they had requested "help"
-            // Otherwise just echo back to them what they sent us.
 
-            // but first, let's make sure the token matches!
+            // but first, let's make sure the token matches! validation baby!
             if (message.token !== process.env.VERIFICATION_TOKEN) return; //just ignore it.
 
             // if no text was supplied, treat it as a help command
             if (message.text === "" || message.text === "help") {
                 slashCommand.replyPrivate(message,
-                    "I echo back what you tell me. " +
-                    "Try typing `/echo hello` to see.");
+                    "I can track your Slack usage." +
+                    "Type `/slacktracker start` to start the timer." +
+                    "Type `/slacktracker stop` to stop the timer & see your usage time.");
                 return;
             }
 
-            // If we made it here, just echo what the user typed back at them
-            //TODO You do it!
-            slashCommand.replyPublic(message, "1", function() {
-                slashCommand.replyPublicDelayed(message, "2").then(slashCommand.replyPublicDelayed(message, "3"));
-            });
+            //store user_id
+            const user_id = message.user_id
+
+            // if text === start, record start time for the user
+            if (message.text === "start") {
+                //store user start time
+                timeTracker[user_id] = moment();
+
+                slashCommand.replyPrivate(message,
+                    "Timer started.");
+                return;
+            }
+
+            // if text === stop, reset start time and calc time spent
+            if (message.text === "stop") {
+                //first check that a timer has started
+                if (!timeTracker[user_id]) {
+                    slashCommand.replyPrivate(message,
+                        "A timer has not been started yet. Type `/slacktracker start`."); 
+                }
+
+                //calc time spent
+                const usage = moment.duration(moment().diff(start));
+                const hours = usage.get('hours');
+                const mins = usage.get('minutes');
+                
+                //reset start time
+                timeTracker[user_id] = null;
+
+                //report usage to user
+                slashCommand.replyPrivate(message,
+                    `You've been Slack'n for ${hours} hours and ${mins} minutes.`);
+                return;
+            }
 
             break;
         default:
             slashCommand.replyPublic(message, "I'm afraid I don't know how to " + message.command + " yet.");
-
     }
 
 })
